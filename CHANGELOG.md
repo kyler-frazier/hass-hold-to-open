@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-15
+
 ### Added
 
 - Dashboard hold actions run as soon as the hold registers, without waiting for release.
@@ -14,3 +16,6 @@ All notable changes to this project are documented here. The format is based on
   lifts, so Android doesn't skip it).
 - A fading "ghost" of the card when the hold registers.
 - Options: `enable`, `hold_time`, `ghost`, `ghost_opacity`, `ghost_scale` and `ghost_duration`.
+
+[Unreleased]: https://github.com/kyler-frazier/hass-hold-to-open/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kyler-frazier/hass-hold-to-open/releases/tag/v0.1.0
