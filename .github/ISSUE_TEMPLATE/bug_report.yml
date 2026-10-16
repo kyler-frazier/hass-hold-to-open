@@ -1,0 +1,102 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. A clear report with a way to reproduce it is
+        the fastest way to a fix. Questions about Home Assistant itself are better asked on the
+        [community forum](https://community.home-assistant.io/).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you submit
+      options:
+        - label: >-
+            I searched [existing issues](https://github.com/kyler-frazier/hass-hold-to-open/issues?q=is%3Aissue)
+            and this hasn't been reported.
+          required: true
+        - label: I'm using the latest release of this plugin, and I refreshed the page or app after updating.
+          required: true
+        - label: This report covers a single problem.
+          required: true
+        - label: >-
+            I checked whether it still happens with other custom cards and plugins removed, or I
+            explain below why I couldn't.
+          required: false
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem. Include what you expected to happen instead.
+      placeholder: |
+        Holding a tile card opens its details, but releasing also turns the light off.
+        I expected the light to stay on.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps and configuration that shows the problem.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Dashboard configuration
+      description: >-
+        Your `hold_to_open` block (if any), plus the views or cards involved. Remove anything
+        private, such as entity names or addresses you'd rather not share.
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Printed in the browser console when a dashboard loads (`HOLD-TO-OPEN x.y.z`).
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: hass
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: e.g. 2026.10.1
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device, OS and app or browser
+      placeholder: e.g. Pixel 8, Android 16, Home Assistant Companion app 2026.10
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console errors
+      description: Any errors from the browser console. They're pasted as text, so no need for backticks.
+      render: text
+  - type: textarea
+    id: media
+    attributes:
+      label: Screen recording or screenshots
+      description: A short screen recording is usually the most helpful thing you can add.
+  - type: checkboxes
+    id: ai
+    attributes:
+      label: AI assistance
+      description: >-
+        AI tools are welcome, but a person needs to stand behind every report. See
+        [our AI policy](https://github.com/kyler-frazier/hass-hold-to-open/blob/main/CONTRIBUTING.md#using-ai-tools).
+      options:
+        - label: >-
+            If I used AI to help write this, I reviewed and edited it, and I reproduced the problem
+            myself.
+          required: true

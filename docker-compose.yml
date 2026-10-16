@@ -1,0 +1,30 @@
+# Disposable Home Assistant instance for the Playwright tests (and manual poking).
+#   npm run hass:up     # start, wait until healthy
+#   npm run hass:down   # stop and wipe
+services:
+  hass:
+    image: ghcr.io/home-assistant/home-assistant:${HASS_VERSION:-stable}
+    ports:
+      - ${HASS_PORT:-8123}:8123
+    volumes:
+      - ./.hass/hass-init.sh:/etc/cont-init.d/hass-init.sh:ro
+      - ./.hass/config/configuration.yaml:/config/configuration.yaml:ro
+      - ./.hass/config/dashboards.yaml:/config/dashboards.yaml:ro
+      - ./.hass/config/dashboards:/config/dashboards:ro
+      - ./.hass/config/packages:/config/packages:ro
+      # The folder, not the file: editors that save by replacing the file would leave a
+      # single-file mount serving the old version
+      - .:/config/www/plugin:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8123/lovelace')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    stop_grace_period: 30s

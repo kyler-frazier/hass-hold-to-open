@@ -1,0 +1,12 @@
+views:
+  - title: Test
+    path: test
+    cards:
+      - type: tile
+        entity: input_boolean.lamp
+        tap_action: { action: toggle }
+        hold_action: { action: more-info }
+      - type: tile
+        entity: input_boolean.fan
+        tap_action: { action: toggle }
+        hold_action: { action: none }

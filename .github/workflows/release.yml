@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    name: Attach plugin to release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stamp version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s/^const VERSION = \".*\";/const VERSION = \"${version}\";/" hold-to-open.js
+          grep -q "const VERSION = \"${version}\";" hold-to-open.js
+      - name: Upload asset
+        run: gh release upload "$GITHUB_REF_NAME" hold-to-open.js --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

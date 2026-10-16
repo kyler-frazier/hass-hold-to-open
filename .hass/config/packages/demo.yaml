@@ -1,0 +1,6 @@
+# Stand-in devices for the demo dashboard (used for the README recording)
+input_boolean:
+  living_room_lamp: { name: Living room lamp, icon: mdi:floor-lamp, initial: true }
+  kitchen_light: { name: Kitchen light, icon: mdi:light-recessed, initial: true }
+  desk_light: { name: Desk light, icon: mdi:desk-lamp, initial: false }
+  porch_light: { name: Porch light, icon: mdi:outdoor-lamp, initial: false }

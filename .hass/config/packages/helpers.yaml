@@ -1,0 +1,4 @@
+# Entities used by the test dashboards
+input_boolean:
+  lamp: { name: Lamp, icon: mdi:lamp, initial: false }
+  fan: { name: Fan, icon: mdi:fan, initial: false }

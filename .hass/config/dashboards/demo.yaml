@@ -1,0 +1,33 @@
+views:
+  - title: Home
+    path: home
+    icon: mdi:home
+    type: sections
+    sections:
+      - type: grid
+        title: Lights
+        cards:
+          - {
+              type: tile,
+              entity: input_boolean.living_room_lamp,
+              tap_action: { action: toggle },
+              hold_action: { action: more-info },
+            }
+          - {
+              type: tile,
+              entity: input_boolean.kitchen_light,
+              tap_action: { action: toggle },
+              hold_action: { action: more-info },
+            }
+          - {
+              type: tile,
+              entity: input_boolean.desk_light,
+              tap_action: { action: toggle },
+              hold_action: { action: more-info },
+            }
+          - {
+              type: tile,
+              entity: input_boolean.porch_light,
+              tap_action: { action: toggle },
+              hold_action: { action: more-info },
+            }

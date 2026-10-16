@@ -1,0 +1,19 @@
+# One dashboard per scenario under test (see tests/)
+mode: storage
+dashboards:
+  test-default:
+    mode: yaml
+    title: Default options
+    filename: dashboards/default.yaml
+  test-custom:
+    mode: yaml
+    title: Custom options
+    filename: dashboards/custom.yaml
+  test-disabled:
+    mode: yaml
+    title: Disabled
+    filename: dashboards/disabled.yaml
+  demo-home:
+    mode: yaml
+    title: Demo
+    filename: dashboards/demo.yaml
