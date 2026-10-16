@@ -60,6 +60,24 @@ export const dialogOpen = (page) =>
     return open;
   });
 
+/** Center of the open details dialog's close (X) button. */
+export const closeButton = (page) =>
+  page.evaluate(() => {
+    const find = (root, match) => {
+      for (const el of root.querySelectorAll("*")) {
+        if (match(el)) return el;
+        const found = el.shadowRoot && find(el.shadowRoot, match);
+        if (found) return found;
+      }
+    };
+    const dialog = find(document, (el) => el.tagName === "HA-MORE-INFO-DIALOG");
+    const r = find(
+      dialog.shadowRoot,
+      (el) => el.slot === "headerNavigationIcon",
+    ).getBoundingClientRect();
+    return [r.x + r.width / 2, r.y + r.height / 2];
+  });
+
 export const entityState = (page, id) =>
   page.evaluate((id) => document.querySelector("home-assistant").hass.states[id].state, id);
 

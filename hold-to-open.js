@@ -28,7 +28,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
 
   let pending = null; // { timer }
   let fired = false; // swallow the release that follows a hold we fired
-  let deferred = []; // history.pushState calls made while the finger was down
+  let deferred = []; // [method, args] history calls made while the finger was down
+  let restoreHistory = null;
 
   // Home Assistant's shared hold timer. Its `held`, `cancelled` and `holdTime` fields are
   // internal, so everything below degrades to HA's normal behavior if they change.
@@ -80,22 +81,33 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
 
   // Android skips history entries that a page adds without a user interaction, and a
   // finger that's still down doesn't count until it lifts. Opening the dialog adds the
-  // entry Back uses to close it, so hold that entry back until the finger lifts.
+  // entry Back uses to close it, so hold that entry back until the finger lifts. HA then
+  // sets the dialog's URL with replaceState, which would land on the dashboard's entry
+  // instead (so closing with X reopens the dialog), so hold those back too.
   const openDeferringHistory = (el) => {
-    const push = history.pushState;
-    history.pushState = (...args) => deferred.push(args);
+    flushHistory();
+    const { pushState, replaceState } = history;
+    history.pushState = (...args) => deferred.push(["pushState", args]);
+    history.replaceState = (...args) =>
+      deferred.length ? deferred.push(["replaceState", args]) : replaceState.apply(history, args);
+    restoreHistory = () => {
+      history.pushState = pushState;
+      history.replaceState = replaceState;
+      restoreHistory = null;
+    };
     try {
       const ev = new Event("action", { bubbles: true, composed: true }); // HA's fireEvent shape
       ev.detail = { action: "hold" };
       el.dispatchEvent(ev);
     } finally {
       // HA pushes synchronously when opening a dialog; give async paths a moment too
-      setTimeout(() => (history.pushState = push), 50);
+      setTimeout(() => deferred.length || restoreHistory?.(), 50);
     }
   };
 
   const flushHistory = () => {
-    for (const args of deferred) History.prototype.pushState.apply(history, args);
+    restoreHistory?.();
+    for (const [method, args] of deferred) History.prototype[method].apply(history, args);
     deferred = [];
   };
 

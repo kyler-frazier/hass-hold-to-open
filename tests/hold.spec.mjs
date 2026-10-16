@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  closeButton,
   dialogOpen,
   dialogPushes,
   entityState,
@@ -66,6 +67,19 @@ test.describe("default options", () => {
     expect(await dialogPushes(page)).toEqual([{ fingerDown: false }]);
     await page.evaluate(() => history.back());
     await expectDialog(page, false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("the X button closes the details for good", async ({ page }) => {
+    const url = page.url();
+    const f = await finger(page);
+    await f.down(await tile(page));
+    await page.waitForTimeout(800);
+    await f.up();
+    await page.waitForTimeout(600);
+    await f.tap(await closeButton(page));
+    await page.waitForTimeout(1000); // the bug reopened the details a moment after closing
+    expect(await dialogOpen(page)).toBe(false);
     expect(page.url()).toBe(url);
   });
 
