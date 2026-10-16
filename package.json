@@ -1,6 +1,6 @@
 {
   "name": "hass-hold-to-open",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Make Home Assistant dashboard hold actions run as soon as the hold registers, without waiting for release.",
   "license": "MIT",
