@@ -10,3 +10,27 @@ views:
         entity: input_boolean.fan
         tap_action: { action: toggle }
         hold_action: { action: none }
+      - type: tile
+        entity: input_boolean.fan
+        tap_action: { action: none }
+        hold_action: { action: navigate, navigation_path: /test-default/other }
+      - type: tile
+        entity: input_boolean.fan
+        tap_action: { action: none }
+        hold_action: { action: toggle }
+      - type: tile
+        entity: input_boolean.fan
+        tap_action: { action: none }
+        hold_action: { action: url, url_path: "https://example.com/" }
+      - type: tile
+        entity: input_boolean.lamp
+        tap_action: { action: none }
+        hold_action:
+          action: perform-action
+          perform_action: input_boolean.toggle
+          target: { entity_id: input_boolean.lamp }
+  - title: Other
+    path: other
+    cards:
+      - type: markdown
+        content: Other view

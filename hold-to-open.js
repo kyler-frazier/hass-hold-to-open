@@ -28,7 +28,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
 
   let pending = null; // { timer }
   let fired = false; // swallow the release that follows a hold we fired
-  let deferred = []; // history.pushState calls made while the finger was down
+  let deferred = []; // [fn, this, args, navigates] calls made while the finger was down
+  let restore = null;
 
   // Home Assistant's shared hold timer. Its `held`, `cancelled` and `holdTime` fields are
   // internal, so everything below degrades to HA's normal behavior if they change.
@@ -78,25 +79,52 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
       .finished.finally(() => wrap.remove());
   };
 
-  // Android skips history entries that a page adds without a user interaction, and a
-  // finger that's still down doesn't count until it lifts. Opening the dialog adds the
-  // entry Back uses to close it, so hold that entry back until the finger lifts.
-  const openDeferringHistory = (el) => {
-    const push = history.pushState;
-    history.pushState = (...args) => deferred.push(args);
+  // A finger that's still down doesn't count as a user interaction until it lifts, and
+  // Android skips history entries added without one, so Back would leave the app instead of
+  // closing the dialog. Popups are blocked without one too. So the history entries and
+  // popups an action makes are held back and replayed when the finger lifts:
+  // - pushState, for a dialog's entry or a navigate action.
+  // - replaceState after a held push. HA uses it to set the dialog's URL, and it would
+  //   otherwise land on the dashboard's entry (so closing with X reopens the dialog).
+  // - window.open, for a url action.
+  const runDeferring = (el) => {
+    replay();
+    const { pushState, replaceState } = history;
+    const open = window.open;
+    const pushed = () => deferred.some(([fn]) => fn === pushState);
+    history.pushState = (...args) => deferred.push([pushState, history, args, !args[0]?.dialog]);
+    history.replaceState = (...args) =>
+      pushed() ? deferred.push([replaceState, history, args]) : replaceState.apply(history, args);
+    window.open = (...args) => (deferred.push([open, window, args]), null);
+    restore = () => {
+      Object.assign(history, { pushState, replaceState });
+      window.open = open;
+      restore = null;
+    };
     try {
       const ev = new Event("action", { bubbles: true, composed: true }); // HA's fireEvent shape
       ev.detail = { action: "hold" };
       el.dispatchEvent(ev);
     } finally {
-      // HA pushes synchronously when opening a dialog; give async paths a moment too
-      setTimeout(() => (history.pushState = push), 50);
+      // HA acts synchronously; give async paths a moment too
+      setTimeout(() => deferred.length || restore?.(), 50);
     }
   };
 
-  const flushHistory = () => {
-    for (const args of deferred) History.prototype.pushState.apply(history, args);
+  const replay = () => {
+    restore?.();
+    let navigated = false;
+    for (const [fn, self, args, navigates] of deferred) {
+      fn.apply(self, args);
+      navigated ||= navigates;
+    }
     deferred = [];
+    // HA's navigate told the router to read the URL before the URL had changed
+    if (navigated) {
+      const ev = new Event("location-changed", { bubbles: true, composed: true });
+      ev.detail = { replace: false };
+      window.dispatchEvent(ev);
+    }
   };
 
   let baseHoldTime = null;
@@ -124,7 +152,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
         fired = true;
         ah._stopAnimation?.();
         if (opt.ghost) ghost(el, opt);
-        setTimeout(() => openDeferringHistory(el), opt.ghost ? OPEN_DELAY_MS : 0);
+        setTimeout(() => runDeferring(el), opt.ghost ? OPEN_DELAY_MS : 0);
       }, opt.hold_time + 20);
       pending = { timer };
     },
@@ -137,7 +165,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     fired = false;
     e.preventDefault(); // stops the release counting as a tap, and the follow-up click
     e.stopPropagation();
-    setTimeout(flushHistory, OPEN_DELAY_MS + 60); // after the dialog has opened
+    setTimeout(replay, OPEN_DELAY_MS + 60); // after the dialog has opened
   };
   window.addEventListener("touchend", release, { capture: true });
   window.addEventListener("touchcancel", release, { capture: true });

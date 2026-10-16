@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- Closing details opened by a hold with the X button no longer reopens them.
+- Navigate hold actions now go to their page. They run when the finger lifts.
+- Url hold actions open their link when the finger lifts, so the browser doesn't block it as a popup.
+
 ## [0.1.0] - 2026-10-15
 
 ### Added
