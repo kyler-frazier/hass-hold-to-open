@@ -54,9 +54,11 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
 
 - **Swallow the release after a hold we fired.** Otherwise lifting the finger runs the tap
   action too (for example, toggling the light whose details just opened).
-- **Defer the dialog's history entry until the finger lifts.** Android skips history entries
-  added without a user interaction, and a finger that's still down doesn't count. Without the
-  deferral, Back leaves the app instead of closing the dialog.
+- **Defer what needs a user interaction until the finger lifts.** A finger that's still down
+  doesn't count as one. Android skips history entries added without one (so Back would leave
+  the app instead of closing the dialog), and browsers block popups. So `pushState`, the
+  `replaceState` calls after it, and `window.open` are held back and replayed on release, and
+  Home Assistant's router is told to re-read the URL after a held navigation.
 - **Rely on Home Assistant's own `held` and `cancelled` flags.** Don't reimplement movement or
   timing rules; matching Home Assistant keeps behavior consistent.
 - **Fail safe.** If the internals the plugin reads are missing or change, do nothing, so Home

@@ -83,6 +83,46 @@ test.describe("default options", () => {
     expect(page.url()).toBe(url);
   });
 
+  test("a navigate hold action goes to its page when the finger lifts", async ({ page }) => {
+    const f = await finger(page);
+    await f.down(await tile(page, 2));
+    await page.waitForTimeout(800);
+    await f.up();
+    await expect(page.getByText("Other view")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/test-default/other");
+  });
+
+  for (const [action, n, entity] of [
+    ["toggle", 3, "input_boolean.fan"],
+    ["perform-action", 5, "input_boolean.lamp"],
+  ]) {
+    test(`a ${action} hold action runs once, before the finger lifts`, async ({ page }) => {
+      const before = await entityState(page, entity);
+      const f = await finger(page);
+      await f.down(await tile(page, n));
+      await expect.poll(() => entityState(page, entity)).not.toBe(before);
+      const during = await entityState(page, entity);
+      await f.up();
+      await page.waitForTimeout(600);
+      expect(await entityState(page, entity)).toBe(during);
+    });
+  }
+
+  test("a url hold action opens its link when the finger lifts", async ({ page }) => {
+    // Popups need a user interaction, which a finger that's still down isn't yet
+    await page.evaluate(() => {
+      window.__opened = [];
+      window.open = (url) => window.__opened.push({ url, fingerDown: window.__fingerDown });
+    });
+    const f = await finger(page);
+    await f.down(await tile(page, 4));
+    await page.waitForTimeout(800);
+    await f.up();
+    await expect
+      .poll(() => page.evaluate(() => window.__opened))
+      .toEqual([{ url: "https://example.com/", fingerDown: false }]);
+  });
+
   test("a ghost of the card appears, then cleans itself up", async ({ page }) => {
     const f = await finger(page);
     await f.down(await tile(page));
