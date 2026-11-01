@@ -96,3 +96,19 @@ export const dialogPushes = (page) => page.evaluate(() => window.__dialogPushes)
 export async function expectDialog(page, open) {
   await expect.poll(() => dialogOpen(page)).toBe(open);
 }
+
+/** Whether the nth tile card shows its pressed state (its ripple is still held down). */
+export const tilePressed = (page, n = 0) =>
+  page
+    .locator("hui-tile-card")
+    .nth(n)
+    .evaluate((card) => {
+      let pressed = false;
+      (function walk(root) {
+        for (const el of root.querySelectorAll("*")) {
+          if (/^(ha|md)-ripple$/.test(el.localName) && el.pressed) pressed = true;
+          if (el.shadowRoot) walk(el.shadowRoot);
+        }
+      })(card.shadowRoot ?? card);
+      return pressed;
+    });

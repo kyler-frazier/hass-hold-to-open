@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- A card no longer stays in its pressed look after a hold opens its details.
+
 ## [0.1.1] - 2026-10-16
 
 ### Fixed
