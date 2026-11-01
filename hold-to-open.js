@@ -30,6 +30,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   let fired = false; // swallow the release that follows a hold we fired
   let deferred = []; // [fn, this, args, navigates] calls made while the finger was down
   let restore = null;
+  let pointerId = null; // of the touch that's down, for unpress()
 
   // Home Assistant's shared hold timer. Its `held`, `cancelled` and `holdTime` fields are
   // internal, so everything below degrades to HA's normal behavior if they change.
@@ -127,7 +128,33 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     }
   };
 
+  // Swallowing the release also swallows the click that a card's ripple waits for after a
+  // touch, so the card would stay pressed. A pointercancel ends the press the ripple's own way.
+  const unpress = (path) => {
+    for (const n of path) {
+      for (const root of [n, n.shadowRoot]) {
+        for (const r of root?.querySelectorAll?.("ha-ripple, md-ripple") ?? []) {
+          // Not every HA version exposes whether a ripple is pressed; one at rest stays at rest
+          const ev = new PointerEvent("pointercancel", {
+            pointerId,
+            isPrimary: true,
+            pointerType: "touch",
+          });
+          r.control?.dispatchEvent(ev);
+        }
+      }
+    }
+  };
+
   let baseHoldTime = null;
+
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.pointerType === "touch" && e.isPrimary) pointerId = e.pointerId;
+    },
+    { capture: true, passive: true },
+  );
 
   window.addEventListener(
     "touchstart",
@@ -154,7 +181,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
         if (opt.ghost) ghost(el, opt);
         setTimeout(() => runDeferring(el), opt.ghost ? OPEN_DELAY_MS : 0);
       }, opt.hold_time + 20);
-      pending = { timer };
+      pending = { timer, path: path.slice(0, path.indexOf(el) + 1) };
     },
     { capture: true, passive: true },
   );
@@ -165,6 +192,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     fired = false;
     e.preventDefault(); // stops the release counting as a tap, and the follow-up click
     e.stopPropagation();
+    unpress(pending?.path ?? []);
     setTimeout(replay, OPEN_DELAY_MS + 60); // after the dialog has opened
   };
   window.addEventListener("touchend", release, { capture: true });

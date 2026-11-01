@@ -9,6 +9,7 @@ import {
   ghostCount,
   openDashboard,
   tile,
+  tilePressed,
 } from "./helpers/ha.mjs";
 
 test.describe("default options", () => {
@@ -81,6 +82,19 @@ test.describe("default options", () => {
     await page.waitForTimeout(1000); // the bug reopened the details a moment after closing
     expect(await dialogOpen(page)).toBe(false);
     expect(page.url()).toBe(url);
+  });
+
+  test("the card doesn't stay pressed after a hold", async ({ page }) => {
+    const f = await finger(page);
+    await f.down(await tile(page));
+    await page.waitForTimeout(800);
+    expect(await tilePressed(page)).toBe(true); // the press shows while the finger is down
+    await f.up();
+    await expect.poll(() => tilePressed(page)).toBe(false);
+    await page.waitForTimeout(600); // let the details finish opening
+    await f.tap(await closeButton(page));
+    await expectDialog(page, false);
+    expect(await tilePressed(page)).toBe(false);
   });
 
   test("a navigate hold action goes to its page when the finger lifts", async ({ page }) => {

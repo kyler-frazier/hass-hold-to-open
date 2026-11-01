@@ -54,6 +54,9 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
 
 - **Swallow the release after a hold we fired.** Otherwise lifting the finger runs the tap
   action too (for example, toggling the light whose details just opened).
+- **End the card's press after swallowing the release.** A ripple waits for the click that
+  follows a touch, and swallowing the release swallows that click, so the card would look
+  pressed until it's tapped again. A `pointercancel` with the touch's pointer ID ends it.
 - **Defer what needs a user interaction until the finger lifts.** A finger that's still down
   doesn't count as one. Android skips history entries added without one (so Back would leave
   the app instead of closing the dialog), and browsers block popups. So `pushState`, the
