@@ -134,7 +134,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     for (const n of path) {
       for (const root of [n, n.shadowRoot]) {
         for (const r of root?.querySelectorAll?.("ha-ripple, md-ripple") ?? []) {
-          if (!r.pressed) continue;
+          // Not every HA version exposes whether a ripple is pressed; one at rest stays at rest
           const ev = new PointerEvent("pointercancel", {
             pointerId,
             isPrimary: true,

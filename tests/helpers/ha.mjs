@@ -106,7 +106,12 @@ export const tilePressed = (page, n = 0) =>
       let pressed = false;
       (function walk(root) {
         for (const el of root.querySelectorAll("*")) {
-          if (/^(ha|md)-ripple$/.test(el.localName) && el.pressed) pressed = true;
+          // The class both ripple versions render while pressed
+          if (
+            /^(ha|md)-ripple$/.test(el.localName) &&
+            el.shadowRoot?.querySelector(".surface.pressed")
+          )
+            pressed = true;
           if (el.shadowRoot) walk(el.shadowRoot);
         }
       })(card.shadowRoot ?? card);
