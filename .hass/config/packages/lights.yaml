@@ -1,0 +1,15 @@
+# A light group, for holding cards inside its details dialog (its members are tiles)
+template:
+  - light:
+      - name: Lamp light
+        state: "{{ is_state('input_boolean.lamp', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lamp } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lamp } }
+      - name: Fan light
+        state: "{{ is_state('input_boolean.fan', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.fan } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.fan } }
+light:
+  - platform: group
+    name: Lamps
+    entities: [light.lamp_light, light.fan_light]

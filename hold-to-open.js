@@ -36,9 +36,20 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   // internal, so everything below degrades to HA's normal behavior if they change.
   const handler = () => document.body.querySelector("action-handler");
 
-  const options = (path) => {
+  // Details opened over a dashboard count as part of it. Other dialogs, and details opened
+  // anywhere else, keep HA's behavior.
+  const dashboard = (path) => {
     const panel = path.find((n) => n.tagName === "HA-PANEL-LOVELACE");
-    if (!panel) return null; // only dashboards; dialogs and settings pages keep HA's behavior
+    if (panel || !path.some((n) => n.tagName === "HA-MORE-INFO-DIALOG")) return panel;
+    return document
+      .querySelector("home-assistant")
+      ?.shadowRoot?.querySelector("home-assistant-main")
+      ?.shadowRoot?.querySelector("ha-panel-lovelace");
+  };
+
+  const options = (path) => {
+    const panel = dashboard(path);
+    if (!panel) return null;
     const raw = panel.lovelace?.config?.[CONFIG_KEY];
     const opt = { ...DEFAULTS, ...(raw && typeof raw === "object" ? raw : {}) };
     return opt.enable === false ? null : opt;
@@ -68,7 +79,21 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     } catch {
       return; // not every custom card can be copied; skip the effect rather than break the hold
     }
-    card.parentNode.append(wrap);
+    // In details, the card can be gone a moment later (a member's details replace the group's),
+    // so the ghost goes in the dialog's root instead, as a popover to show above the dialog
+    let dialog = null;
+    for (let n = card; n && !dialog; n = n.parentNode || n.host) {
+      if (n.localName === "ha-more-info-dialog") dialog = n;
+    }
+    if (dialog?.shadowRoot && wrap.showPopover) {
+      wrap.popover = "manual";
+      wrap.style.cssText = `inset:auto;margin:0;border:0;padding:0;background:none;
+        overflow:visible;${wrap.style.cssText}`;
+      dialog.shadowRoot.append(wrap);
+      wrap.showPopover();
+    } else {
+      card.parentNode.append(wrap);
+    }
     wrap
       .animate(
         [

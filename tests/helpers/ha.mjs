@@ -117,3 +117,63 @@ export const tilePressed = (page, n = 0) =>
       })(card.shadowRoot ?? card);
       return pressed;
     });
+
+/** Opens an entity's details, as a card's more-info action does. */
+export const openDetails = (page, entityId) =>
+  page.evaluate((entityId) => {
+    const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+    ev.detail = { entityId };
+    document.querySelector("home-assistant").dispatchEvent(ev);
+  }, entityId);
+
+// Tiles inside the open details dialog (a group's details list its members as tiles)
+const detailsTiles = (page) =>
+  page.evaluate(() => {
+    const tiles = [];
+    const dialog = [...document.querySelectorAll("*")]
+      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
+      .find(Boolean);
+    (function walk(root) {
+      for (const el of root?.querySelectorAll("*") ?? []) {
+        if (el.localName === "hui-tile-card") tiles.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    })(dialog?.shadowRoot);
+    window.__detailsTiles = tiles;
+    return tiles.length;
+  });
+
+/** The entity whose details are showing. */
+export const detailsEntity = (page) =>
+  page.evaluate(() => {
+    const dialog = [...document.querySelectorAll("*")]
+      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
+      .find(Boolean);
+    return dialog?._entityId ?? null;
+  });
+
+/**
+ * Gives the tiles in the details dialog a tap and a hold action, as a dashboard card would have.
+ * Home Assistant's own have neither (a tap opens the member's details).
+ */
+export async function memberActions(page) {
+  await expect.poll(() => detailsTiles(page)).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    for (const t of window.__detailsTiles)
+      t.setConfig({
+        ...t._config,
+        tap_action: { action: "toggle" },
+        hold_action: { action: "more-info" },
+      });
+  });
+  await page.waitForTimeout(300);
+}
+
+/** Center of the nth tile's body in the details dialog. */
+export async function detailsTile(page, n = 0) {
+  await detailsTiles(page);
+  return page.evaluate((n) => {
+    const r = window.__detailsTiles[n].getBoundingClientRect();
+    return [r.x + r.width * 0.65, r.y + r.height / 2];
+  }, n);
+}

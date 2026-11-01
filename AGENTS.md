@@ -66,8 +66,13 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   timing rules; matching Home Assistant keeps behavior consistent.
 - **Fail safe.** If the internals the plugin reads are missing or change, do nothing, so Home
   Assistant's normal behavior remains. Never risk running an action twice.
-- **Only dashboards.** Touches outside `ha-panel-lovelace` (dialogs, settings pages) are left
-  alone.
+- **Only dashboards, and details opened over one.** Touches outside `ha-panel-lovelace` are left
+  alone, except in `ha-more-info-dialog` while a dashboard is showing, which uses that
+  dashboard's options. Other dialogs, and details opened from settings pages, keep HA's
+  behavior.
+- **In details, the ghost is a popover in the dialog's root.** A member's details replace the
+  group's a moment after the hold, removing the card, and the dialog cancels animations inside
+  it.
 
 ## Conventions
 

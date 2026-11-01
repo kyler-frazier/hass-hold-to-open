@@ -32,9 +32,11 @@ your dashboards.
 - **The Back gesture still works.** Back closes the details that opened, instead of leaving the
   app.
 - **Visual feedback.** A faint copy of the card swells and fades as the hold registers.
+- **Works in details too.** Cards inside an entity's details opened from a dashboard (like the
+  members of a light group) get the same treatment, with that dashboard's options.
 - **Adjustable hold time,** per dashboard.
 - **Everything else is unchanged.** Taps, double taps, scrolling, cards without hold actions,
-  dialogs and settings pages behave exactly as before.
+  other dialogs and settings pages behave exactly as before.
 
 ## Installation
 
