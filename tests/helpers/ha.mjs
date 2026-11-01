@@ -118,13 +118,15 @@ export const tilePressed = (page, n = 0) =>
       return pressed;
     });
 
-/** Opens an entity's details, as a card's more-info action does. */
-export const openDetails = (page, entityId) =>
-  page.evaluate((entityId) => {
+/** Opens an entity's details, as a card's more-info action does, and waits for them to open. */
+export async function openDetails(page, entityId) {
+  await page.evaluate((entityId) => {
     const ev = new Event("hass-more-info", { bubbles: true, composed: true });
     ev.detail = { entityId };
     document.querySelector("home-assistant").dispatchEvent(ev);
   }, entityId);
+  await page.waitForTimeout(600); // the sheet slides up; cards move until it's done
+}
 
 // Tiles inside the open details dialog (a group's details list its members as tiles)
 const detailsTiles = (page) =>
@@ -176,4 +178,32 @@ export async function detailsTile(page, n = 0) {
     const r = window.__detailsTiles[n].getBoundingClientRect();
     return [r.x + r.width * 0.65, r.y + r.height / 2];
   }, n);
+}
+
+/** Closes the open details the way their X button or a swipe down does. */
+export const closeDetails = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("*")]
+      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
+      .find(Boolean)
+      .closeDialog(),
+  );
+
+/** Whether the details' content is animating (sliding in). */
+export const detailsSliding = (page) =>
+  page.evaluate(() => {
+    const dialog = [...document.querySelectorAll("*")]
+      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
+      .find(Boolean);
+    const content = dialog?.shadowRoot?.querySelector(".content-wrapper");
+    return (content?.getAnimations() ?? []).some((a) => a.playState === "running");
+  });
+
+/** Holds the nth tile in the open details until its hold runs, then lifts the finger. */
+export async function holdDetailsTile(page, n = 0) {
+  const f = await finger(page);
+  await f.down(await detailsTile(page, n));
+  await page.waitForTimeout(800);
+  await f.up();
+  await page.waitForTimeout(600);
 }

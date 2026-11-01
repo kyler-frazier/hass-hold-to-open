@@ -70,6 +70,18 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   alone, except in `ha-more-info-dialog` while a dashboard is showing, which uses that
   dashboard's options. Other dialogs, and details opened from settings pages, keep HA's
   behavior.
+- **Listen for the release on the touched element too.** A touch's events keep going to the
+  element first touched; when a hold in details replaces it, they stop reaching `window`, so
+  the release wouldn't be swallowed and held-back history calls would never be replayed.
+- **A member's details get their own history entry, and every way out removes it.** HA's
+  popstate listeners were added before the plugin's, so they can't be pre-empted. On landing on
+  a dialog's entry they go back once more (closing the details) and reopen the details named in
+  the URL. So `history.back()` ignores calls made during a popstate that's ours, `fromUrl`
+  `hass-more-info` events are dropped when stale, already shown, or while a close unwinds, the
+  dialog's back arrow goes back in history too, and closing leaves HA to go back through the
+  entries.
+- **Slide the content wrapper, not the content.** `ha-more-info-info` is re-created for each
+  entity, so an animation on it is lost.
 - **In details, the ghost is a popover in the dialog's root.** A member's details replace the
   group's a moment after the hold, removing the card, and the dialog cancels animations inside
   it.

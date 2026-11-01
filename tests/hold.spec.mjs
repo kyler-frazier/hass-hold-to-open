@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import {
   closeButton,
+  closeDetails,
   detailsEntity,
+  detailsSliding,
   detailsTile,
   dialogOpen,
   dialogPushes,
@@ -9,6 +11,7 @@ import {
   expectDialog,
   finger,
   ghostCount,
+  holdDetailsTile,
   memberActions,
   openDashboard,
   openDetails,
@@ -194,6 +197,83 @@ test.describe("details opened over a dashboard", () => {
     await expect.poll(() => entityState(page, "input_boolean.lamp")).not.toBe(before);
     expect(await detailsEntity(page)).toBe("light.lamps");
   });
+  test("Back from a member's details returns to the group, then closes", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+    await page.evaluate(() => history.back());
+    await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
+    expect(await dialogOpen(page)).toBe(true);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000); // a leftover entry would reopen the details
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("the back arrow returns to the group, and Back then closes", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    const f = await finger(page);
+    await f.tap(await closeButton(page)); // the back arrow, in a member's details
+    await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
+    await page.waitForTimeout(600);
+    expect(await dialogOpen(page)).toBe(true);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("closing a member's details closes them for good", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await closeDetails(page);
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+    expect(await page.evaluate(() => history.state?.dialog)).toBeUndefined();
+  });
+
+  test("a member's details slide in, and so does the group's on the way back", async ({ page }) => {
+    const f = await finger(page);
+    await f.down(await detailsTile(page));
+    await expect.poll(() => detailsSliding(page), { intervals: [20] }).toBe(true);
+    await f.up();
+    await page.waitForTimeout(600);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => detailsSliding(page), { intervals: [20] }).toBe(true);
+  });
+});
+
+test("Back also returns to the group from a member opened by Home Assistant's own tap", async ({
+  page,
+}) => {
+  await openDashboard(page, "/test-default/test");
+  await openDetails(page, "light.lamps");
+  const f = await finger(page);
+  await f.tap(await detailsTile(page)); // a member's tile opens its details on tap
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
+  await page.waitForTimeout(400);
+  await page.evaluate(() => history.back());
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
+  expect(await dialogOpen(page)).toBe(true);
+});
+
+test("details_back and details_slide: false keep Home Assistant's behavior", async ({ page }) => {
+  await openDashboard(page, "/test-custom/test");
+  await openDetails(page, "light.lamps");
+  await memberActions(page);
+  const f = await finger(page);
+  await f.down(await detailsTile(page));
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
+  expect(await detailsSliding(page)).toBe(false);
+  await f.up();
+  await page.waitForTimeout(600);
+  await page.evaluate(() => history.back());
+  await expectDialog(page, false);
 });
 
 test("details opened outside a dashboard keep Home Assistant's open-on-release behavior", async ({

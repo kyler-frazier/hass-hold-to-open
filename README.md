@@ -34,6 +34,9 @@ your dashboards.
 - **Visual feedback.** A faint copy of the card swells and fades as the hold registers.
 - **Works in details too.** Cards inside an entity's details opened from a dashboard (like the
   members of a light group) get the same treatment, with that dashboard's options.
+- **Back returns to the group.** When a group's details open a member's (by a tap or a hold),
+  Back and the back arrow return to the group instead of closing everything, and the details
+  slide in either direction.
 - **Adjustable hold time,** per dashboard.
 - **Everything else is unchanged.** Taps, double taps, scrolling, cards without hold actions,
   other dialogs and settings pages behave exactly as before.
@@ -80,6 +83,8 @@ configuration editor**, and add a `hold_to_open` block at the top level. All opt
 | `ghost_opacity`  | `0.35`  | Starting opacity of the ghost, from 0 to 1.                     |
 | `ghost_scale`    | `1.18`  | How much the ghost grows as it fades (1 = not at all).          |
 | `ghost_duration` | `450`   | How long the ghost takes to fade, in milliseconds.              |
+| `details_back`   | `true`  | Back from a member's details returns to the group's.            |
+| `details_slide`  | `true`  | Slide the details in when moving between a group and a member.  |
 
 Example:
 

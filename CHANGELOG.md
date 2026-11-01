@@ -10,6 +10,9 @@ All notable changes to this project are documented here. The format is based on
 
 - Holds work inside an entity's details opened from a dashboard, such as on the members of a
   light group, with that dashboard's options.
+- Back from a member's details (a light in a group's) returns to the group's instead of
+  closing them, and the details slide in when moving between them. Options `details_back` and
+  `details_slide`.
 
 ### Fixed
 

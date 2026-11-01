@@ -23,6 +23,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     ghost_opacity: 0.35,
     ghost_scale: 1.18,
     ghost_duration: 450, // ms
+    details_back: true,
+    details_slide: true,
   };
   const OPEN_DELAY_MS = 40; // let the ghost start before the dialog covers the card
 
@@ -171,6 +173,120 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     }
   };
 
+  // Home Assistant shows a member's details (a light in a group's) in place of the group's
+  // without a history entry, so Back closes them all. Each gets an entry here, and Back returns
+  // to the group instead. HA's own popstate listeners run first (they were added first), and
+  // react to landing on a dialog's entry in two ways that have to be held off:
+  // - they go back once more, closing the details, and
+  // - they reopen the details named in the URL.
+  let depth = 0; // entries added for the open details
+  let ourBack = 0; // history.back() calls of ours still to arrive as popstates
+  let unwinding = false; // details closed with entries left; HA goes back through them
+  let returning = false; // inside our own _goBack() for a Back
+
+  const moreInfo = () =>
+    document.querySelector("home-assistant")?.shadowRoot?.querySelector("ha-more-info-dialog");
+
+  const slide = (dialog, dir) => {
+    if (!options([dialog])?.details_slide) return;
+    // The content itself is re-created for the new entity; its wrapper stays
+    dialog.updateComplete?.then(() =>
+      dialog.shadowRoot?.querySelector(".content-wrapper")?.animate(
+        [
+          { transform: `translateX(${dir * 32}px)`, opacity: 0 },
+          { transform: "none", opacity: 1 },
+        ],
+        { duration: 220, easing: "cubic-bezier(.2,.6,.3,1)" },
+      ),
+    );
+  };
+
+  // A Back that returns from a member's details, or that comes from our own history.back()
+  const ours = () => {
+    const dialog = moreInfo();
+    return ourBack > 0 || (depth > 0 && dialog?._open && dialog._parentEntityIds?.length > 0);
+  };
+
+  const { back } = history;
+  history.back = function (...args) {
+    // window.event is the popstate when HA's listener calls this on landing on a dialog's entry
+    if (window.event?.type === "popstate" && ours()) return;
+    return back.apply(this, args);
+  };
+
+  window.addEventListener(
+    "hass-more-info",
+    (e) => {
+      const dialog = moreInfo();
+      if (e.detail?.fromUrl) {
+        // HA reopening details from the URL of an entry it landed on
+        const current = new URLSearchParams(location.search).get("more-info-entity-id");
+        const shown = dialog?._open && dialog._entityId === e.detail.entityId;
+        if (unwinding || shown || current !== e.detail.entityId) e.stopImmediatePropagation();
+        return;
+      }
+      const id = e.detail?.entityId;
+      if (!e.composedPath().includes(dialog) || !dialog._open) return;
+      if (!Array.isArray(dialog._parentEntityIds) || !id || id === dialog._entityId) return;
+      if (!history.state?.dialog) return;
+      if (options([dialog])?.details_back) {
+        // Before HA handles it, so HA's URL update lands on the new entry. Held back with the
+        // rest until the finger lifts, during a hold.
+        history.pushState({ ...history.state }, "", location.href);
+        depth++;
+      }
+      slide(dialog, 1);
+    },
+    { capture: true },
+  );
+
+  window.addEventListener("popstate", (e) => {
+    if (ourBack > 0) {
+      ourBack--;
+      return;
+    }
+    if (unwinding) {
+      unwinding = !!e.state?.dialog;
+      return;
+    }
+    if (!depth) return;
+    const dialog = moreInfo();
+    if (dialog?._open && dialog._parentEntityIds?.length) {
+      depth--;
+      returning = true;
+      try {
+        dialog._goBack();
+      } finally {
+        returning = false;
+      }
+      slide(dialog, -1);
+    }
+  });
+
+  window.addEventListener("dialog-closed", (e) => {
+    if (e.detail?.dialog !== "ha-more-info-dialog" || !depth) return;
+    depth = 0;
+    unwinding = true;
+  });
+
+  // The dialog's back arrow returns to the group without going back in history
+  customElements.whenDefined("ha-more-info-dialog").then(() => {
+    const proto = customElements.get("ha-more-info-dialog").prototype;
+    const goBack = proto._goBack;
+    if (typeof goBack !== "function") return;
+    proto._goBack = function (...args) {
+      const before = this._parentEntityIds?.length ?? 0;
+      const result = goBack.apply(this, args);
+      if (!returning && depth && (this._parentEntityIds?.length ?? 0) < before) {
+        depth--;
+        ourBack++;
+        back.call(history);
+        slide(this, -1);
+      }
+      return result;
+    };
+  });
+
   let baseHoldTime = null;
 
   window.addEventListener(
@@ -196,6 +312,10 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
       const opt = options(path);
       const el = path.find((n) => n.actionHandler?.options?.hasHold);
       if (!opt || !el) return;
+      // A touch's events keep going to the element first touched, and stop reaching window if a
+      // hold removes it (a member's details replace the group's)
+      for (const type of ["touchend", "touchcancel"])
+        path[0].addEventListener(type, release, { capture: true, once: true });
       // Runs before HA's own touchstart listener, which reads holdTime
       ah.holdTime = opt.hold_time;
       // Just after HA's timer, so its `held` flag tells us the hold wasn't cancelled
