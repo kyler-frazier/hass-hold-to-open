@@ -1,8 +1,7 @@
 hold_to_open:
   hold_time: 300
   ghost: false
-  details_back: false
-  details_slide: false
+  stack_details: false
 views:
   - title: Test
     path: test

@@ -23,8 +23,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     ghost_opacity: 0.35,
     ghost_scale: 1.18,
     ghost_duration: 450, // ms
-    details_back: true,
-    details_slide: true,
+    stack_details: true,
   };
   const OPEN_DELAY_MS = 40; // let the ghost start before the dialog covers the card
 
@@ -115,16 +114,31 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   // - replaceState after a held push. HA uses it to set the dialog's URL, and it would
   //   otherwise land on the dashboard's entry (so closing with X reopens the dialog).
   // - window.open, for a url action.
+  const historyState = Object.getOwnPropertyDescriptor(History.prototype, "state").get;
   const runDeferring = (el) => {
     replay();
     const { pushState, replaceState } = history;
     const open = window.open;
     const pushed = () => deferred.some(([fn]) => fn === pushState);
-    history.pushState = (...args) => deferred.push([pushState, history, args, !args[0]?.dialog]);
-    history.replaceState = (...args) =>
-      pushed() ? deferred.push([replaceState, history, args]) : replaceState.apply(history, args);
+    // HA reads history.state right after pushing, to keep it when it replaces the URL, so it
+    // has to see the state of the push that's held back, not the dashboard's
+    let held = null;
+    history.pushState = (...args) => {
+      held = { state: args[0] ?? null };
+      deferred.push([pushState, history, args, !args[0]?.dialog]);
+    };
+    history.replaceState = (...args) => {
+      if (!pushed()) return replaceState.apply(history, args);
+      held = { state: args[0] ?? null };
+      deferred.push([replaceState, history, args]);
+    };
+    Object.defineProperty(history, "state", {
+      configurable: true,
+      get: () => (held ? held.state : historyState.call(history)),
+    });
     window.open = (...args) => (deferred.push([open, window, args]), null);
     restore = () => {
+      delete history.state;
       Object.assign(history, { pushState, replaceState });
       window.open = open;
       restore = null;
@@ -173,118 +187,101 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     }
   };
 
-  // Home Assistant shows a member's details (a light in a group's) in place of the group's
-  // without a history entry, so Back closes them all. Each gets an entry here, and Back returns
-  // to the group instead. HA's own popstate listeners run first (they were added first), and
-  // react to landing on a dialog's entry in two ways that have to be held off:
-  // - they go back once more, closing the details, and
-  // - they reopen the details named in the URL.
-  let depth = 0; // entries added for the open details
+  // Home Assistant shows a member's details (a light in a group's) in place of the group's,
+  // with no history entry and no transition, so Back closes them all. Instead, they open in a
+  // second details dialog stacked on top, with its own history entry: it slides up over the
+  // group's, and Back, X or a swipe slide it away with the group's still underneath.
+  //
+  // HA's popstate listeners were added before the plugin's, so they can't be pre-empted. On
+  // landing on a dialog's entry they go back once more (closing the group's details too) and
+  // reopen the details named in the URL; both are held off while a stacked dialog is involved.
+  const stack = []; // stacked details dialogs, newest last
   let ourBack = 0; // history.back() calls of ours still to arrive as popstates
-  let unwinding = false; // details closed with entries left; HA goes back through them
-  let returning = false; // inside our own _goBack() for a Back
 
-  const moreInfo = () =>
-    document.querySelector("home-assistant")?.shadowRoot?.querySelector("ha-more-info-dialog");
-
-  const slide = (dialog, dir) => {
-    if (!options([dialog])?.details_slide) return;
-    // The content itself is re-created for the new entity; its wrapper stays
-    dialog.updateComplete?.then(() =>
-      dialog.shadowRoot?.querySelector(".content-wrapper")?.animate(
-        [
-          { transform: `translateX(${dir * 32}px)`, opacity: 0 },
-          { transform: "none", opacity: 1 },
-        ],
-        { duration: 220, easing: "cubic-bezier(.2,.6,.3,1)" },
-      ),
-    );
-  };
-
-  // A Back that returns from a member's details, or that comes from our own history.back()
-  const ours = () => {
-    const dialog = moreInfo();
-    return ourBack > 0 || (depth > 0 && dialog?._open && dialog._parentEntityIds?.length > 0);
-  };
+  const home = () => document.querySelector("home-assistant");
+  const moreInfo = () => home()?.shadowRoot?.querySelector("ha-more-info-dialog");
 
   const { back } = history;
   history.back = function (...args) {
     // window.event is the popstate when HA's listener calls this on landing on a dialog's entry
-    if (window.event?.type === "popstate" && ours()) return;
+    if (window.event?.type === "popstate" && (ourBack > 0 || stack.length > 0)) return;
     return back.apply(this, args);
+  };
+
+  // Dialogs HA opens itself get each hass update; a stacked one has to be kept up to date
+  const keepHass = () => {
+    if (!stack.length) return;
+    const hass = home()?.hass;
+    for (const d of stack) if (hass && d.hass !== hass) d.hass = hass;
+    requestAnimationFrame(keepHass);
+  };
+
+  // Dialogs closing for us leave the stack at once, so HA's own going back isn't held off
+  const dismiss = (dialog) => {
+    stack.splice(stack.indexOf(dialog), 1);
+    dialog.__holdToOpenByBack = true;
+    dialog.closeDialog();
+  };
+  const closed = (dialog) => {
+    if (stack.includes(dialog)) stack.splice(stack.indexOf(dialog), 1);
+    dialog.remove();
+    if (dialog.__holdToOpenByBack) return;
+    // Closed with X or a swipe: drop its history entry too
+    ourBack++;
+    back.call(history);
+  };
+
+  const openStacked = (entityId, view) => {
+    const ha = home();
+    const dialog = document.createElement("ha-more-info-dialog");
+    dialog.hass = ha.hass;
+    // Kept from HA's dialog manager, which would take it for the group's details closing
+    dialog.addEventListener("dialog-closed", (e) => {
+      e.stopImmediatePropagation();
+      closed(dialog);
+    });
+    ha.shadowRoot.append(dialog);
+    stack.push(dialog);
+    if (stack.length === 1) requestAnimationFrame(keepHass);
+    dialog.showDialog({ entityId, view });
+    // Held back with the rest until the finger lifts, during a hold
+    history.pushState({ ...history.state }, "", location.href);
   };
 
   window.addEventListener(
     "hass-more-info",
     (e) => {
-      const dialog = moreInfo();
       if (e.detail?.fromUrl) {
-        // HA reopening details from the URL of an entry it landed on
+        // HA reopening details from the URL of an entry it landed on: the group's, which are
+        // already open underneath, or a stale one
         const current = new URLSearchParams(location.search).get("more-info-entity-id");
-        const shown = dialog?._open && dialog._entityId === e.detail.entityId;
-        if (unwinding || shown || current !== e.detail.entityId) e.stopImmediatePropagation();
+        const shown = moreInfo()?._open && moreInfo()._entityId === e.detail.entityId;
+        if (stack.length || ourBack || shown || current !== e.detail.entityId)
+          e.stopImmediatePropagation();
         return;
       }
+      const from = e.composedPath().find((n) => n.localName === "ha-more-info-dialog");
       const id = e.detail?.entityId;
-      if (!e.composedPath().includes(dialog) || !dialog._open) return;
-      if (!Array.isArray(dialog._parentEntityIds) || !id || id === dialog._entityId) return;
-      if (!history.state?.dialog) return;
-      if (options([dialog])?.details_back) {
-        // Before HA handles it, so HA's URL update lands on the new entry. Held back with the
-        // rest until the finger lifts, during a hold.
-        history.pushState({ ...history.state }, "", location.href);
-        depth++;
-      }
-      slide(dialog, 1);
+      if (!from?._open || !id || id === from._entityId) return;
+      if (!options([from])?.stack_details || !history.state?.dialog) return;
+      e.stopImmediatePropagation(); // so the group's dialog doesn't swap its content
+      openStacked(id, e.detail.view);
     },
     { capture: true },
   );
 
-  window.addEventListener("popstate", (e) => {
+  window.addEventListener("popstate", () => {
     if (ourBack > 0) {
       ourBack--;
       return;
     }
-    if (unwinding) {
-      unwinding = !!e.state?.dialog;
-      return;
-    }
-    if (!depth) return;
-    const dialog = moreInfo();
-    if (dialog?._open && dialog._parentEntityIds?.length) {
-      depth--;
-      returning = true;
-      try {
-        dialog._goBack();
-      } finally {
-        returning = false;
-      }
-      slide(dialog, -1);
-    }
+    if (stack.length) dismiss(stack.at(-1));
   });
 
+  // The group's details closing some other way (say, navigating elsewhere) takes the rest along
   window.addEventListener("dialog-closed", (e) => {
-    if (e.detail?.dialog !== "ha-more-info-dialog" || !depth) return;
-    depth = 0;
-    unwinding = true;
-  });
-
-  // The dialog's back arrow returns to the group without going back in history
-  customElements.whenDefined("ha-more-info-dialog").then(() => {
-    const proto = customElements.get("ha-more-info-dialog").prototype;
-    const goBack = proto._goBack;
-    if (typeof goBack !== "function") return;
-    proto._goBack = function (...args) {
-      const before = this._parentEntityIds?.length ?? 0;
-      const result = goBack.apply(this, args);
-      if (!returning && depth && (this._parentEntityIds?.length ?? 0) < before) {
-        depth--;
-        ourBack++;
-        back.call(history);
-        slide(this, -1);
-      }
-      return result;
-    };
+    if (e.detail?.dialog !== "ha-more-info-dialog") return;
+    for (const d of [...stack]) dismiss(d);
   });
 
   let baseHoldTime = null;

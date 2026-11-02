@@ -6,6 +6,13 @@ import { expect } from "@playwright/test";
 export async function openDashboard(page, path) {
   // Records dialog history entries, and whether a finger was down when each was added
   await page.addInitScript(() => {
+    // The topmost open details dialog (members' details stack on top of the group's)
+    window.__dialogs = () => [
+      ...(document
+        .querySelector("home-assistant")
+        ?.shadowRoot?.querySelectorAll("ha-more-info-dialog") ?? []),
+    ];
+    window.__topDialog = () => window.__dialogs().findLast((d) => d._open) ?? window.__dialogs()[0];
     window.__dialogPushes = [];
     const push = History.prototype.pushState;
     History.prototype.pushState = function (state, ...rest) {
@@ -70,7 +77,7 @@ export const closeButton = (page) =>
         if (found) return found;
       }
     };
-    const dialog = find(document, (el) => el.tagName === "HA-MORE-INFO-DIALOG");
+    const dialog = window.__topDialog();
     const r = find(
       dialog.shadowRoot,
       (el) => el.slot === "headerNavigationIcon",
@@ -132,9 +139,7 @@ export async function openDetails(page, entityId) {
 const detailsTiles = (page) =>
   page.evaluate(() => {
     const tiles = [];
-    const dialog = [...document.querySelectorAll("*")]
-      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
-      .find(Boolean);
+    const dialog = window.__topDialog();
     (function walk(root) {
       for (const el of root?.querySelectorAll("*") ?? []) {
         if (el.localName === "hui-tile-card") tiles.push(el);
@@ -145,14 +150,12 @@ const detailsTiles = (page) =>
     return tiles.length;
   });
 
-/** The entity whose details are showing. */
-export const detailsEntity = (page) =>
-  page.evaluate(() => {
-    const dialog = [...document.querySelectorAll("*")]
-      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
-      .find(Boolean);
-    return dialog?._entityId ?? null;
-  });
+/** The entity whose details are on top. */
+export const detailsEntity = (page) => page.evaluate(() => window.__topDialog()?._entityId ?? null);
+
+/** How many details dialogs are open. */
+export const openDialogs = (page) =>
+  page.evaluate(() => window.__dialogs().filter((d) => d._open).length);
 
 /**
  * Gives the tiles in the details dialog a tap and a hold action, as a dashboard card would have.
@@ -180,24 +183,26 @@ export async function detailsTile(page, n = 0) {
   }, n);
 }
 
-/** Closes the open details the way their X button or a swipe down does. */
-export const closeDetails = (page) =>
-  page.evaluate(() =>
-    [...document.querySelectorAll("*")]
-      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
-      .find(Boolean)
-      .closeDialog(),
-  );
+/** Closes the top details the way their X button or a swipe down does. */
+export const closeDetails = (page) => page.evaluate(() => window.__topDialog().closeDialog());
 
-/** Whether the details' content is animating (sliding in). */
-export const detailsSliding = (page) =>
-  page.evaluate(() => {
-    const dialog = [...document.querySelectorAll("*")]
-      .map((el) => el.shadowRoot?.querySelector("ha-more-info-dialog"))
-      .find(Boolean);
-    const content = dialog?.shadowRoot?.querySelector(".content-wrapper");
-    return (content?.getAnimations() ?? []).some((a) => a.playState === "running");
-  });
+/** How the nth details dialog's bottom sheet is moving: "up", "down", or null when it's still. */
+export const detailsSliding = (page, n = 0) =>
+  page.evaluate((n) => {
+    const dialog = window.__dialogs()[n];
+    const sheet = dialog?.shadowRoot
+      ?.querySelector("ha-adaptive-dialog")
+      ?.shadowRoot?.querySelector("ha-bottom-sheet")
+      ?.shadowRoot?.querySelector("wa-drawer")
+      ?.shadowRoot?.querySelector("dialog");
+    const running = (sheet?.getAnimations() ?? []).filter((a) => a.playState === "running");
+    const last = running.at(-1);
+    if (!last) return null;
+    const fromShown = ["0", "0px"].includes(last.effect.getKeyframes()[0].translate);
+    // Closing may play the opening animation backwards
+    const reversed = last.playbackRate < 0 || last.effect.getTiming().direction === "reverse";
+    return fromShown !== reversed ? "down" : "up";
+  }, n);
 
 /** Holds the nth tile in the open details until its hold runs, then lifts the finger. */
 export async function holdDetailsTile(page, n = 0) {
