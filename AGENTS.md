@@ -30,7 +30,9 @@ npm test             # Playwright (HASS_URL to point elsewhere)
 npm run hass:down
 ```
 
-Run `npm run check` and `npm test` before considering a change done. Behavior changes need a
+Run `npm run check` and `npm test` before considering a change done. `tests/internals.spec.mjs`
+checks each Home Assistant internal the plugin relies on, one per test; when the plugin starts
+relying on a new one, add it there. CI runs daily against stable, beta and dev (nightly) builds. Behavior changes need a
 test. Tests drive real touch events through the Chrome DevTools Protocol
 (`tests/helpers/ha.mjs`), because Playwright's touchscreen API can only tap.
 
