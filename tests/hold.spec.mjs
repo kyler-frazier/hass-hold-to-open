@@ -1,13 +1,17 @@
 import { expect, test } from "@playwright/test";
 import {
   closeButton,
+  detailsEntity,
+  detailsTile,
   dialogOpen,
   dialogPushes,
   entityState,
   expectDialog,
   finger,
   ghostCount,
+  memberActions,
   openDashboard,
+  openDetails,
   tile,
   tilePressed,
 } from "./helpers/ha.mjs";
@@ -161,6 +165,57 @@ test.describe("default options", () => {
     expect(await dialogOpen(page)).toBe(false);
     await f.up();
   });
+});
+
+test.describe("details opened over a dashboard", () => {
+  test.beforeEach(async ({ page }) => {
+    await openDashboard(page, "/test-default/test");
+    await openDetails(page, "light.lamps");
+    await memberActions(page);
+  });
+
+  test("holding a card opens its details before the finger lifts", async ({ page }) => {
+    const before = await entityState(page, "input_boolean.lamp");
+    const f = await finger(page);
+    await f.down(await detailsTile(page));
+    await expect.poll(() => ghostCount(page), { intervals: [50] }).toBe(1);
+    await expect.poll(() => detailsEntity(page), { intervals: [50] }).toBe("light.lamp_light");
+    expect(await ghostCount(page)).toBe(1); // outlives the card it copies
+    await f.up();
+    await page.waitForTimeout(600);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+    expect(await entityState(page, "input_boolean.lamp")).toBe(before);
+  });
+
+  test("a tap still runs the tap action", async ({ page }) => {
+    const before = await entityState(page, "input_boolean.lamp");
+    const f = await finger(page);
+    await f.tap(await detailsTile(page));
+    await expect.poll(() => entityState(page, "input_boolean.lamp")).not.toBe(before);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+  });
+});
+
+test("details opened outside a dashboard keep Home Assistant's open-on-release behavior", async ({
+  page,
+}) => {
+  // Resources load with a dashboard, so start on one and move on, as a person would
+  await openDashboard(page, "/test-default/test");
+  await page.evaluate(() => {
+    history.pushState(null, "", "/history");
+    window.dispatchEvent(new Event("location-changed"));
+  });
+  await page.waitForURL("**/history");
+  await page.waitForTimeout(500);
+  await openDetails(page, "light.lamps");
+  await memberActions(page);
+  const f = await finger(page);
+  await f.down(await detailsTile(page));
+  await page.waitForTimeout(800);
+  expect(await detailsEntity(page)).toBe("light.lamps");
+  expect(await ghostCount(page)).toBe(0);
+  await f.up();
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
 });
 
 test("hold_time and ghost options", async ({ page }) => {

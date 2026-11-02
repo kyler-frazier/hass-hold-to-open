@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Holds work inside an entity's details opened from a dashboard, such as on the members of a
+  light group, with that dashboard's options.
+
 ### Fixed
 
 - A card no longer stays in its pressed look after a hold opens its details.
