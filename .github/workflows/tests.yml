@@ -23,7 +23,7 @@ jobs:
       matrix:
         # dev (nightly) breaks for reasons unrelated to a PR, so only scheduled and manual runs
         # use it
-        hass: ${{ fromJSON(github.event_name == 'pull_request' && '["stable", "beta"]' || '["stable", "beta", "dev"]') }}
+        hass: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["stable", "beta", "dev"]' || '["stable", "beta"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

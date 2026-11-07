@@ -10,16 +10,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("the shared hold handler", async ({ page }) => {
+  // Read before any touch: the plugin's touchstart sets holdTime, which would hide it going away
+  const holdTime = await page.evaluate(
+    () => document.body.querySelector("action-handler")?.holdTime,
+  );
   const f = await finger(page);
   await f.down(await tile(page));
   await page.waitForTimeout(700);
   const ah = await page.evaluate(() => {
     const ah = document.body.querySelector("action-handler");
-    return ah && { holdTime: ah.holdTime, held: ah.held, cancelled: ah.cancelled };
+    return ah && { held: ah.held, cancelled: ah.cancelled };
   });
   await f.up();
   expect(ah, changed("no <action-handler> in document.body")).toBeTruthy();
-  expect(typeof ah.holdTime, changed("action-handler has no numeric holdTime")).toBe("number");
+  expect(typeof holdTime, changed("action-handler has no numeric holdTime")).toBe("number");
   expect(ah.held, changed("action-handler doesn't set held during a hold")).toBe(true);
   expect(ah.cancelled, changed("action-handler has no cancelled flag")).toBe(false);
 });
