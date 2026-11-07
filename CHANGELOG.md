@@ -10,9 +10,13 @@ All notable changes to this project are documented here. The format is based on
 
 - Holds work inside an entity's details opened from a dashboard, such as on the members of a
   light group, with that dashboard's options.
+- A member's details (a light in a group's) open on top of the group's, which stay open
+  underneath. Back, the X or a swipe down returns to the group instead of closing everything.
+  Option `stack_details`.
 
 ### Fixed
 
+- Details opened by a hold no longer get the dashboard's history state on their entry.
 - A card no longer stays in its pressed look after a hold opens its details.
 
 ## [0.1.1] - 2026-10-16

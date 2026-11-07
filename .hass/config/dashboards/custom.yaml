@@ -1,6 +1,7 @@
 hold_to_open:
   hold_time: 300
   ghost: false
+  stack_details: false
 views:
   - title: Test
     path: test

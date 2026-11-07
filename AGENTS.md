@@ -70,9 +70,26 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   alone, except in `ha-more-info-dialog` while a dashboard is showing, which uses that
   dashboard's options. Other dialogs, and details opened from settings pages, keep HA's
   behavior.
-- **In details, the ghost is a popover in the dialog's root.** A member's details replace the
-  group's a moment after the hold, removing the card, and the dialog cancels animations inside
-  it.
+- **Listen for the release on the touched element too.** A touch's events keep going to the
+  element first touched; when a hold in details replaces it, they stop reaching `window`, so
+  the release wouldn't be swallowed and held-back history calls would never be replayed.
+- **A member's details are a second `ha-more-info-dialog`, stacked on the group's.** HA's own
+  dialog swaps its contents, so the group's would vanish. The plugin creates the second dialog
+  itself, keeps its `hass` current, and stops its `dialog-closed` so HA's dialog manager never
+  sees it.
+- **Each stacked dialog has its own history entry, and every way out removes it.** HA's
+  popstate listeners were added before the plugin's, so they can't be pre-empted. On landing on
+  a dialog's entry they go back once more (closing the group) and reopen the details named in
+  the URL. So `history.back()` ignores calls made during a popstate while a stacked dialog is
+  open or the plugin is going back, and `fromUrl` `hass-more-info` events are dropped meanwhile.
+  The X or a swipe down goes back once itself. Dialogs leave the stack as soon as they start
+  closing, so HA can go back through the group's entry when the group closes.
+- **While calls are held back, `history.state` reports the held-back push.** HA replaces the URL
+  right after pushing a dialog's entry, passing on `history.state`; otherwise the dashboard's
+  state would land on the dialog's entry.
+- **In details, the ghost is a popover in the dialog's root.** With `stack_details: false`, a
+  member's details replace the group's a moment after the hold, removing the card, and the
+  dialog cancels animations inside it.
 
 ## Conventions
 
