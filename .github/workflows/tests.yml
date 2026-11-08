@@ -6,8 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    # Weekly, to catch Home Assistant frontend changes that break the plugin
-    - cron: "0 6 * * 1"
+    # Daily, against beta and dev too, to catch Home Assistant frontend changes that break the
+    # plugin before they're released
+    - cron: "17 6 * * *"
 
 permissions:
   contents: read
@@ -20,7 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        hass: [stable, beta]
+        # dev (nightly) breaks for reasons unrelated to a PR, so only scheduled and manual runs
+        # use it
+        hass: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["stable", "beta", "dev"]' || '["stable", "beta"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
