@@ -16,6 +16,8 @@ import {
   openDialogs,
   openDashboard,
   openDetails,
+  settled,
+  stays,
   tile,
   tilePressed,
 } from "./helpers/ha.mjs";
@@ -278,18 +280,16 @@ test.describe("details opened over a dashboard", () => {
     await holdDetailsTile(page);
     await page.evaluate(() => history.back());
     await expect.poll(() => openDialogs(page)).toBe(1);
-    await page.waitForTimeout(600);
+    await settled(page);
     await page.evaluate(() => history.forward());
     await expect.poll(() => openDialogs(page)).toBe(2);
     expect(await detailsEntity(page)).toBe("light.lamp_light");
-    await page.waitForTimeout(1000); // HA going back off the entry would close them again
-    expect(await openDialogs(page)).toBe(2);
+    await stays(() => openDialogs(page), 2); // HA going back off the entry would close them
     await page.evaluate(() => history.back());
     await expect.poll(() => openDialogs(page)).toBe(1);
     await page.evaluate(() => history.back());
     await expectDialog(page, false);
-    await page.waitForTimeout(1000);
-    expect(await dialogOpen(page)).toBe(false);
+    await stays(() => dialogOpen(page), false);
     expect(page.url()).toBe(url);
   });
 
@@ -301,21 +301,19 @@ test.describe("details opened over a dashboard", () => {
       ev.detail = { entityId: "input_boolean.fan" };
       window.__topDialog().shadowRoot.firstElementChild.dispatchEvent(ev);
     });
-    await page.waitForTimeout(600);
-    expect(await openDialogs(page)).toBe(3);
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    await settled(page);
     await page.evaluate(() => history.go(-2));
     await expect.poll(() => openDialogs(page)).toBe(1);
     expect(await detailsEntity(page)).toBe("light.lamps");
-    await page.waitForTimeout(1000);
-    expect(await openDialogs(page)).toBe(1);
+    await stays(() => openDialogs(page), 1);
     await page.evaluate(() => history.go(2));
     await expect.poll(() => openDialogs(page)).toBe(3);
     expect(await detailsEntity(page)).toBe("input_boolean.fan");
-    await page.waitForTimeout(600);
+    await settled(page);
     await page.evaluate(() => history.go(-3));
     await expectDialog(page, false);
-    await page.waitForTimeout(1000);
-    expect(await dialogOpen(page)).toBe(false);
+    await stays(() => dialogOpen(page), false);
     expect(page.url()).toBe(url);
   });
 });

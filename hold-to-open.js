@@ -285,7 +285,7 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     }
     const want = e.state?.holdToOpenStack ?? [];
     const same = (d, w) =>
-      d.__holdToOpen.entityId === w?.entityId && d.__holdToOpen.view === w.view;
+      d.__holdToOpen.entityId === w?.entityId && d.__holdToOpen.view === w?.view;
     let keep = 0;
     while (keep < stack.length && same(stack[keep], want[keep])) keep++;
     for (const d of stack.slice(keep).reverse()) dismiss(d);
