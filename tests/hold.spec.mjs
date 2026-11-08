@@ -315,6 +315,21 @@ test.describe("details opened over a dashboard", () => {
     await expectDialog(page, false);
     await stays(() => dialogOpen(page), false);
     expect(page.url()).toBe(url);
+    // Straight from the dashboard: HA reopens the group's details from the URL a moment later
+    await page.evaluate(() => history.go(3));
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    expect(await detailsEntity(page)).toBe("input_boolean.fan");
+    await stays(() => openDialogs(page), 3);
+    for (const n of [2, 1]) {
+      await settled(page);
+      await page.evaluate(() => history.back());
+      await expect.poll(() => openDialogs(page)).toBe(n);
+    }
+    await settled(page);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await stays(() => dialogOpen(page), false);
+    expect(page.url()).toBe(url);
   });
 });
 

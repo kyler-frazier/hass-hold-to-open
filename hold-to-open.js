@@ -207,8 +207,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   history.back = function (...args) {
     // window.event is the popstate when HA's listener calls this on landing on a dialog's entry
     const e = window.event;
-    if (e?.type === "popstate" && (ourBack > 0 || stack.length > 0 || e.state?.holdToOpenStack))
-      return;
+    const onStacked = e?.state?.holdToOpenStack && moreInfo()?._open;
+    if (e?.type === "popstate" && (ourBack > 0 || stack.length > 0 || onStacked)) return;
     return back.apply(this, args);
   };
 
@@ -289,9 +289,25 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     let keep = 0;
     while (keep < stack.length && same(stack[keep], want[keep])) keep++;
     for (const d of stack.slice(keep).reverse()) dismiss(d);
-    // Reopened only over the group's details, which HA keeps open on its own entry
-    if (moreInfo()?._open) for (const d of want.slice(keep)) openStacked(d.entityId, d.view, false);
+    if (moreInfo()?._open) {
+      for (const d of want.slice(keep)) openStacked(d.entityId, d.view, false);
+    } else if (want.length && !reopening) {
+      // Landed with the group's details closed: HA goes back off the entry (through any
+      // stacked ones before it) and reopens them on a fresh one, so the stack landed on is
+      // reopened on top with fresh entries too
+      reopening = { want, until: Date.now() + 2000 };
+      requestAnimationFrame(reopen);
+    }
   });
+  let reopening = null;
+  const reopen = () => {
+    const s = history.state;
+    if (moreInfo()?._open && s?.dialog && !s.holdToOpenStack) {
+      if (!stack.length) for (const d of reopening.want) openStacked(d.entityId, d.view);
+      reopening = null;
+    } else if (Date.now() < reopening.until) requestAnimationFrame(reopen);
+    else reopening = null;
+  };
 
   // The group's details closing some other way (say, navigating elsewhere) takes the rest along
   window.addEventListener("dialog-closed", (e) => {
