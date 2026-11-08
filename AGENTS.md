@@ -88,7 +88,8 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   shows (`holdToOpenStack`), and every popstate closes or reopens stacked dialogs to match, so
   Forward and jumps of several entries work too. Landing on a stacked entry with the group's
   details closed, HA's going back is let through: it reopens the group on a fresh entry, and the
-  plugin then reopens the stack landed on, with fresh entries of its own.
+  plugin then reopens the stack landed on, with fresh entries of its own (only over that same
+  group, on the same page).
   The X or a swipe down goes back once itself. Dialogs leave the stack as soon as they start
   closing, so HA can go back through the group's entry when the group closes.
 - **While calls are held back, `history.state` reports the held-back push.** HA replaces the URL

@@ -295,18 +295,23 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
       // Landed with the group's details closed: HA goes back off the entry (through any
       // stacked ones before it) and reopens them on a fresh one, so the stack landed on is
       // reopened on top with fresh entries too
-      reopening = { want, until: Date.now() + 2000 };
+      const group = new URLSearchParams(location.search).get("more-info-entity-id");
+      reopening = { want, group, path: location.pathname, until: Date.now() + 2000 };
       requestAnimationFrame(reopen);
     }
   });
   let reopening = null;
+  // Only over the same group's details on the same page; the first details to open, or leaving
+  // the page, ends it either way
   const reopen = () => {
     const s = history.state;
-    if (moreInfo()?._open && s?.dialog && !s.holdToOpenStack) {
-      if (!stack.length) for (const d of reopening.want) openStacked(d.entityId, d.view);
+    const { want, group, path, until } = reopening;
+    if (location.pathname !== path || Date.now() > until) reopening = null;
+    else if (moreInfo()?._open && s?.dialog && !s.holdToOpenStack) {
+      if (moreInfo()._entityId === group && !stack.length)
+        for (const d of want) openStacked(d.entityId, d.view);
       reopening = null;
-    } else if (Date.now() < reopening.until) requestAnimationFrame(reopen);
-    else reopening = null;
+    } else requestAnimationFrame(reopen);
   };
 
   // The group's details closing some other way (say, navigating elsewhere) takes the rest along
