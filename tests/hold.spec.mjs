@@ -272,6 +272,52 @@ test.describe("details opened over a dashboard", () => {
     await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
     expect(await openDialogs(page)).toBe(1);
   });
+
+  test("Forward after Back reopens a member's details", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    await page.waitForTimeout(600);
+    await page.evaluate(() => history.forward());
+    await expect.poll(() => openDialogs(page)).toBe(2);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+    await page.waitForTimeout(1000); // HA going back off the entry would close them again
+    expect(await openDialogs(page)).toBe(2);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("history jumps of more than one entry match the stack to the entry", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => {
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId: "input_boolean.fan" };
+      window.__topDialog().shadowRoot.firstElementChild.dispatchEvent(ev);
+    });
+    await page.waitForTimeout(600);
+    expect(await openDialogs(page)).toBe(3);
+    await page.evaluate(() => history.go(-2));
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+    await page.waitForTimeout(1000);
+    expect(await openDialogs(page)).toBe(1);
+    await page.evaluate(() => history.go(2));
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    expect(await detailsEntity(page)).toBe("input_boolean.fan");
+    await page.waitForTimeout(600);
+    await page.evaluate(() => history.go(-3));
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
 });
 
 test("details opened by a hold keep their history entry's state", async ({ page }) => {

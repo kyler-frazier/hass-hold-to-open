@@ -195,6 +195,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   // HA's popstate listeners were added before the plugin's, so they can't be pre-empted. On
   // landing on a dialog's entry they go back once more (closing the group's details too) and
   // reopen the details named in the URL; both are held off while a stacked dialog is involved.
+  // Each stacked entry records the stack it shows, so any move through history (Forward, or
+  // several entries at once) can open or close dialogs to match.
   const stack = []; // stacked details dialogs, newest last
   let ourBack = 0; // history.back() calls of ours still to arrive as popstates
 
@@ -204,7 +206,9 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   const { back } = history;
   history.back = function (...args) {
     // window.event is the popstate when HA's listener calls this on landing on a dialog's entry
-    if (window.event?.type === "popstate" && (ourBack > 0 || stack.length > 0)) return;
+    const e = window.event;
+    if (e?.type === "popstate" && (ourBack > 0 || stack.length > 0 || e.state?.holdToOpenStack))
+      return;
     return back.apply(this, args);
   };
 
@@ -231,10 +235,11 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     back.call(history);
   };
 
-  const openStacked = (entityId, view) => {
+  const openStacked = (entityId, view, push = true) => {
     const ha = home();
     const dialog = document.createElement("ha-more-info-dialog");
     dialog.hass = ha.hass;
+    dialog.__holdToOpen = { entityId, view };
     // Kept from HA's dialog manager, which would take it for the group's details closing
     dialog.addEventListener("dialog-closed", (e) => {
       e.stopImmediatePropagation();
@@ -245,7 +250,10 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     if (stack.length === 1) requestAnimationFrame(keepHass);
     dialog.showDialog({ entityId, view });
     // Held back with the rest until the finger lifts, during a hold
-    history.pushState({ ...history.state }, "", location.href);
+    if (push) {
+      const holdToOpenStack = stack.map((d) => d.__holdToOpen);
+      history.pushState({ ...history.state, holdToOpenStack }, "", location.href);
+    }
   };
 
   window.addEventListener(
@@ -275,7 +283,13 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
       ourBack--;
       return;
     }
-    if (stack.length) dismiss(stack.at(-1));
+    const want = history.state?.holdToOpenStack ?? [];
+    let keep = 0;
+    while (keep < stack.length && stack[keep].__holdToOpen.entityId === want[keep]?.entityId)
+      keep++;
+    for (const d of stack.slice(keep).reverse()) dismiss(d);
+    // Reopened only over the group's details, which HA keeps open on its own entry
+    if (moreInfo()?._open) for (const d of want.slice(keep)) openStacked(d.entityId, d.view, false);
   });
 
   // The group's details closing some other way (say, navigating elsewhere) takes the rest along
