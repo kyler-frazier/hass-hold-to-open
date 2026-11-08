@@ -278,15 +278,16 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     { capture: true },
   );
 
-  window.addEventListener("popstate", () => {
+  window.addEventListener("popstate", (e) => {
     if (ourBack > 0) {
       ourBack--;
       return;
     }
-    const want = history.state?.holdToOpenStack ?? [];
+    const want = e.state?.holdToOpenStack ?? [];
+    const same = (d, w) =>
+      d.__holdToOpen.entityId === w?.entityId && d.__holdToOpen.view === w.view;
     let keep = 0;
-    while (keep < stack.length && stack[keep].__holdToOpen.entityId === want[keep]?.entityId)
-      keep++;
+    while (keep < stack.length && same(stack[keep], want[keep])) keep++;
     for (const d of stack.slice(keep).reverse()) dismiss(d);
     // Reopened only over the group's details, which HA keeps open on its own entry
     if (moreInfo()?._open) for (const d of want.slice(keep)) openStacked(d.entityId, d.view, false);
