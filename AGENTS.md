@@ -30,7 +30,9 @@ npm test             # Playwright (HASS_URL to point elsewhere)
 npm run hass:down
 ```
 
-Run `npm run check` and `npm test` before considering a change done. Behavior changes need a
+Run `npm run check` and `npm test` before considering a change done. `tests/internals.spec.mjs`
+checks each Home Assistant internal the plugin relies on, one per test; when the plugin starts
+relying on a new one, add it there. CI runs daily against stable, beta and dev (nightly) builds. Behavior changes need a
 test. Tests drive real touch events through the Chrome DevTools Protocol
 (`tests/helpers/ha.mjs`), because Playwright's touchscreen API can only tap.
 
@@ -54,6 +56,9 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
 
 - **Swallow the release after a hold we fired.** Otherwise lifting the finger runs the tap
   action too (for example, toggling the light whose details just opened).
+- **End the card's press after swallowing the release.** A ripple waits for the click that
+  follows a touch, and swallowing the release swallows that click, so the card would look
+  pressed until it's tapped again. A `pointercancel` with the touch's pointer ID ends it.
 - **Defer what needs a user interaction until the finger lifts.** A finger that's still down
   doesn't count as one. Android skips history entries added without one (so Back would leave
   the app instead of closing the dialog), and browsers block popups. So `pushState`, the
@@ -63,8 +68,30 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   timing rules; matching Home Assistant keeps behavior consistent.
 - **Fail safe.** If the internals the plugin reads are missing or change, do nothing, so Home
   Assistant's normal behavior remains. Never risk running an action twice.
-- **Only dashboards.** Touches outside `ha-panel-lovelace` (dialogs, settings pages) are left
-  alone.
+- **Only dashboards, and details opened over one.** Touches outside `ha-panel-lovelace` are left
+  alone, except in `ha-more-info-dialog` while a dashboard is showing, which uses that
+  dashboard's options. Other dialogs, and details opened from settings pages, keep HA's
+  behavior.
+- **Listen for the release on the touched element too.** A touch's events keep going to the
+  element first touched; when a hold in details replaces it, they stop reaching `window`, so
+  the release wouldn't be swallowed and held-back history calls would never be replayed.
+- **A member's details are a second `ha-more-info-dialog`, stacked on the group's.** HA's own
+  dialog swaps its contents, so the group's would vanish. The plugin creates the second dialog
+  itself, keeps its `hass` current, and stops its `dialog-closed` so HA's dialog manager never
+  sees it.
+- **Each stacked dialog has its own history entry, and every way out removes it.** HA's
+  popstate listeners were added before the plugin's, so they can't be pre-empted. On landing on
+  a dialog's entry they go back once more (closing the group) and reopen the details named in
+  the URL. So `history.back()` ignores calls made during a popstate while a stacked dialog is
+  open or the plugin is going back, and `fromUrl` `hass-more-info` events are dropped meanwhile.
+  The X or a swipe down goes back once itself. Dialogs leave the stack as soon as they start
+  closing, so HA can go back through the group's entry when the group closes.
+- **While calls are held back, `history.state` reports the held-back push.** HA replaces the URL
+  right after pushing a dialog's entry, passing on `history.state`; otherwise the dashboard's
+  state would land on the dialog's entry.
+- **In details, the ghost is a popover in the dialog's root.** With `stack_details: false`, a
+  member's details replace the group's a moment after the hold, removing the card, and the
+  dialog cancels animations inside it.
 
 ## Conventions
 

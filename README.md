@@ -32,9 +32,14 @@ your dashboards.
 - **The Back gesture still works.** Back closes the details that opened, instead of leaving the
   app.
 - **Visual feedback.** A faint copy of the card swells and fades as the hold registers.
+- **Works in details too.** Cards inside an entity's details opened from a dashboard (like the
+  members of a light group) get the same treatment, with that dashboard's options.
+- **A member's details stack on the group's.** When a group's details open a member's (by a
+  tap or a hold), those slide up on top, with the group's still open underneath. Back, the X or
+  a swipe down closes just the member's, returning to the group.
 - **Adjustable hold time,** per dashboard.
 - **Everything else is unchanged.** Taps, double taps, scrolling, cards without hold actions,
-  dialogs and settings pages behave exactly as before.
+  other dialogs and settings pages behave exactly as before.
 
 ## Installation
 
@@ -78,6 +83,7 @@ configuration editor**, and add a `hold_to_open` block at the top level. All opt
 | `ghost_opacity`  | `0.35`  | Starting opacity of the ghost, from 0 to 1.                     |
 | `ghost_scale`    | `1.18`  | How much the ghost grows as it fades (1 = not at all).          |
 | `ghost_duration` | `450`   | How long the ghost takes to fade, in milliseconds.              |
+| `stack_details`  | `true`  | Open a member's details on top of the group's.                  |
 
 Example:
 

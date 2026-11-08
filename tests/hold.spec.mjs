@@ -1,14 +1,23 @@
 import { expect, test } from "@playwright/test";
 import {
   closeButton,
+  closeDetails,
+  detailsEntity,
+  detailsSliding,
+  detailsTile,
   dialogOpen,
   dialogPushes,
   entityState,
   expectDialog,
   finger,
   ghostCount,
+  holdDetailsTile,
+  memberActions,
+  openDialogs,
   openDashboard,
+  openDetails,
   tile,
+  tilePressed,
 } from "./helpers/ha.mjs";
 
 test.describe("default options", () => {
@@ -83,6 +92,19 @@ test.describe("default options", () => {
     expect(page.url()).toBe(url);
   });
 
+  test("the card doesn't stay pressed after a hold", async ({ page }) => {
+    const f = await finger(page);
+    await f.down(await tile(page));
+    await page.waitForTimeout(800);
+    expect(await tilePressed(page)).toBe(true); // the press shows while the finger is down
+    await f.up();
+    await expect.poll(() => tilePressed(page)).toBe(false);
+    await page.waitForTimeout(600); // let the details finish opening
+    await f.tap(await closeButton(page));
+    await expectDialog(page, false);
+    expect(await tilePressed(page)).toBe(false);
+  });
+
   test("a navigate hold action goes to its page when the finger lifts", async ({ page }) => {
     const f = await finger(page);
     await f.down(await tile(page, 2));
@@ -147,6 +169,186 @@ test.describe("default options", () => {
     expect(await dialogOpen(page)).toBe(false);
     await f.up();
   });
+});
+
+test.describe("details opened over a dashboard", () => {
+  test.beforeEach(async ({ page }) => {
+    await openDashboard(page, "/test-default/test");
+    await openDetails(page, "light.lamps");
+    await memberActions(page);
+  });
+
+  test("holding a card opens its details before the finger lifts", async ({ page }) => {
+    const before = await entityState(page, "input_boolean.lamp");
+    const f = await finger(page);
+    await f.down(await detailsTile(page));
+    await expect.poll(() => ghostCount(page), { intervals: [50] }).toBe(1);
+    await expect.poll(() => detailsEntity(page), { intervals: [50] }).toBe("light.lamp_light");
+    expect(await ghostCount(page)).toBe(1); // outlives the card it copies
+    await f.up();
+    await page.waitForTimeout(600);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+    expect(await entityState(page, "input_boolean.lamp")).toBe(before);
+  });
+
+  test("a tap still runs the tap action", async ({ page }) => {
+    const before = await entityState(page, "input_boolean.lamp");
+    const f = await finger(page);
+    await f.tap(await detailsTile(page));
+    await expect.poll(() => entityState(page, "input_boolean.lamp")).not.toBe(before);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+  });
+  test("a member's details open on top of the group's, which stays open", async ({ page }) => {
+    const f = await finger(page);
+    await f.down(await detailsTile(page));
+    await expect.poll(() => detailsSliding(page, 1), { intervals: [20] }).toBe("up");
+    expect(await detailsSliding(page, 0)).toBe(null);
+    await f.up();
+    await page.waitForTimeout(600);
+    expect(await openDialogs(page)).toBe(2);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+  });
+
+  test("Back from a member's details returns to the group, then closes", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => detailsSliding(page, 1), { intervals: [20] }).toBe("down");
+    expect(await detailsSliding(page, 0)).toBe(null); // the group's stay put underneath
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+    await page.waitForTimeout(600);
+    expect(await openDialogs(page)).toBe(1);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000); // a leftover entry would reopen the details
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("the X or a swipe down returns to the group, and Back then closes", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    const f = await finger(page);
+    await f.tap(await closeButton(page));
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    await page.waitForTimeout(600);
+    await holdDetailsTile(page);
+    await closeDetails(page); // a swipe down
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+    await page.waitForTimeout(600);
+    expect(await openDialogs(page)).toBe(1);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("closing the group's details closes its member's too", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => window.__dialogs()[0].closeDialog());
+    await expectDialog(page, false);
+    await page.waitForTimeout(1000);
+    expect(await dialogOpen(page)).toBe(false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("details stack more than one deep", async ({ page }) => {
+    await holdDetailsTile(page);
+    // As a link inside the member's details would
+    await page.evaluate(() => {
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId: "input_boolean.fan" };
+      window.__topDialog().shadowRoot.firstElementChild.dispatchEvent(ev);
+    });
+    await page.waitForTimeout(600);
+    expect(await openDialogs(page)).toBe(3);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
+    await page.evaluate(() => history.back());
+    await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
+    expect(await openDialogs(page)).toBe(1);
+  });
+});
+
+test("details opened by a hold keep their history entry's state", async ({ page }) => {
+  await openDashboard(page, "/test-default/test");
+  const f = await finger(page);
+  await f.down(await tile(page));
+  await page.waitForTimeout(800);
+  await f.up();
+  await page.waitForTimeout(600);
+  // HA replaces the URL right after pushing, keeping the state it reads back
+  expect(await page.evaluate(() => history.state?.dialog)).toBe("ha-more-info-dialog");
+});
+
+test("Back returns to a group whose details were opened by a hold", async ({ page }) => {
+  await openDashboard(page, "/test-default/test");
+  const f = await finger(page);
+  await f.down(await tile(page, 6)); // the light group
+  await page.waitForTimeout(800);
+  await f.up();
+  await page.waitForTimeout(600);
+  await memberActions(page);
+  await holdDetailsTile(page);
+  expect(await detailsEntity(page)).toBe("light.lamp_light");
+  await page.evaluate(() => history.back());
+  await expect.poll(() => openDialogs(page)).toBe(1);
+  expect(await detailsEntity(page)).toBe("light.lamps");
+  await page.evaluate(() => history.back());
+  await expectDialog(page, false);
+});
+
+test("a member opened by Home Assistant's own tap stacks too", async ({ page }) => {
+  await openDashboard(page, "/test-default/test");
+  await openDetails(page, "light.lamps");
+  const f = await finger(page);
+  await f.tap(await detailsTile(page)); // a member's tile opens its details on tap
+  await expect.poll(() => openDialogs(page)).toBe(2);
+  expect(await detailsEntity(page)).toBe("light.lamp_light");
+  await page.waitForTimeout(400);
+  await page.evaluate(() => history.back());
+  await expect.poll(() => openDialogs(page)).toBe(1);
+  expect(await detailsEntity(page)).toBe("light.lamps");
+});
+
+test("stack_details: false keeps Home Assistant's behavior", async ({ page }) => {
+  await openDashboard(page, "/test-custom/test");
+  await openDetails(page, "light.lamps");
+  await memberActions(page);
+  const f = await finger(page);
+  await f.down(await detailsTile(page));
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
+  expect(await openDialogs(page)).toBe(1);
+  await f.up();
+  await page.waitForTimeout(600);
+  await page.evaluate(() => history.back());
+  await expectDialog(page, false);
+});
+
+test("details opened outside a dashboard keep Home Assistant's open-on-release behavior", async ({
+  page,
+}) => {
+  // Resources load with a dashboard, so start on one and move on, as a person would
+  await openDashboard(page, "/test-default/test");
+  await page.evaluate(() => {
+    history.pushState(null, "", "/history");
+    window.dispatchEvent(new Event("location-changed"));
+  });
+  await page.waitForURL("**/history");
+  await page.waitForTimeout(500);
+  await openDetails(page, "light.lamps");
+  await memberActions(page);
+  const f = await finger(page);
+  await f.down(await detailsTile(page));
+  await page.waitForTimeout(800);
+  expect(await detailsEntity(page)).toBe("light.lamps");
+  expect(await ghostCount(page)).toBe(0);
+  await f.up();
+  await expect.poll(() => detailsEntity(page)).toBe("light.lamp_light");
 });
 
 test("hold_time and ghost options", async ({ page }) => {
