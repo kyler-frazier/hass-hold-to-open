@@ -16,6 +16,8 @@ import {
   openDialogs,
   openDashboard,
   openDetails,
+  settled,
+  stays,
   tile,
   tilePressed,
 } from "./helpers/ha.mjs";
@@ -271,6 +273,87 @@ test.describe("details opened over a dashboard", () => {
     await page.evaluate(() => history.back());
     await expect.poll(() => detailsEntity(page)).toBe("light.lamps");
     expect(await openDialogs(page)).toBe(1);
+  });
+
+  test("Forward after Back reopens a member's details", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => history.back());
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    await settled(page);
+    await page.evaluate(() => history.forward());
+    await expect.poll(() => openDialogs(page)).toBe(2);
+    expect(await detailsEntity(page)).toBe("light.lamp_light");
+    await stays(() => openDialogs(page), 2); // HA going back off the entry would close them
+    await page.evaluate(() => history.back());
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await stays(() => dialogOpen(page), false);
+    expect(page.url()).toBe(url);
+  });
+
+  test("a stack reopening after a jump gives way to other details", async ({ page }) => {
+    await holdDetailsTile(page);
+    await settled(page);
+    await page.evaluate(() => history.go(-2));
+    await expectDialog(page, false);
+    await settled(page);
+    // Other details opened as the jump lands, before HA reopens the group's
+    await page.evaluate(() => {
+      addEventListener(
+        "popstate",
+        () => {
+          const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+          ev.detail = { entityId: "input_boolean.fan" };
+          setTimeout(() => document.querySelector("home-assistant").dispatchEvent(ev));
+        },
+        { once: true },
+      );
+      history.go(2);
+    });
+    await expectDialog(page, true);
+    // The member's details don't reopen over other details (HA may still show the group's)
+    await stays(() => openDialogs(page), 1, 2500);
+  });
+
+  test("history jumps of more than one entry match the stack to the entry", async ({ page }) => {
+    const url = page.url().split("?")[0];
+    await holdDetailsTile(page);
+    await page.evaluate(() => {
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId: "input_boolean.fan" };
+      window.__topDialog().shadowRoot.firstElementChild.dispatchEvent(ev);
+    });
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    await settled(page);
+    await page.evaluate(() => history.go(-2));
+    await expect.poll(() => openDialogs(page)).toBe(1);
+    expect(await detailsEntity(page)).toBe("light.lamps");
+    await stays(() => openDialogs(page), 1);
+    await page.evaluate(() => history.go(2));
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    expect(await detailsEntity(page)).toBe("input_boolean.fan");
+    await settled(page);
+    await page.evaluate(() => history.go(-3));
+    await expectDialog(page, false);
+    await stays(() => dialogOpen(page), false);
+    expect(page.url()).toBe(url);
+    // Straight from the dashboard: HA reopens the group's details from the URL a moment later
+    await page.evaluate(() => history.go(3));
+    await expect.poll(() => openDialogs(page)).toBe(3);
+    expect(await detailsEntity(page)).toBe("input_boolean.fan");
+    await stays(() => openDialogs(page), 3);
+    for (const n of [2, 1]) {
+      await settled(page);
+      await page.evaluate(() => history.back());
+      await expect.poll(() => openDialogs(page)).toBe(n);
+    }
+    await settled(page);
+    await page.evaluate(() => history.back());
+    await expectDialog(page, false);
+    await stays(() => dialogOpen(page), false);
+    expect(page.url()).toBe(url);
   });
 });
 

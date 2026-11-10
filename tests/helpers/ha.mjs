@@ -104,6 +104,16 @@ export async function expectDialog(page, open) {
   await expect.poll(() => dialogOpen(page)).toBe(open);
 }
 
+/** Checks that `get()` keeps returning `value` for a while, for what shouldn't happen next. */
+export async function stays(get, value, ms = 1000) {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 100)))
+    expect(await get()).toBe(value);
+}
+
+/** Waits for the page's animations (such as a sheet sliding) to finish. */
+export const settled = (page) =>
+  page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
+
 /** Whether the nth tile card shows its pressed state (its ripple is still held down). */
 export const tilePressed = (page, n = 0) =>
   page

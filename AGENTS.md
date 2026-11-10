@@ -83,7 +83,13 @@ The plugin listens on `window` in the capture phase, so it runs before Home Assi
   popstate listeners were added before the plugin's, so they can't be pre-empted. On landing on
   a dialog's entry they go back once more (closing the group) and reopen the details named in
   the URL. So `history.back()` ignores calls made during a popstate while a stacked dialog is
-  open or the plugin is going back, and `fromUrl` `hass-more-info` events are dropped meanwhile.
+  open, the plugin is going back, or the entry landed on is a stacked one, and `fromUrl`
+  `hass-more-info` events are dropped meanwhile. Each stacked entry's state records the stack it
+  shows (`holdToOpenStack`), and every popstate closes or reopens stacked dialogs to match, so
+  Forward and jumps of several entries work too. Landing on a stacked entry with the group's
+  details closed, HA's going back is let through: it reopens the group on a fresh entry, and the
+  plugin then reopens the stack landed on, with fresh entries of its own (only over that same
+  group, on the same page).
   The X or a swipe down goes back once itself. Dialogs leave the stack as soon as they start
   closing, so HA can go back through the group's entry when the group closes.
 - **While calls are held back, `history.state` reports the held-back push.** HA replaces the URL

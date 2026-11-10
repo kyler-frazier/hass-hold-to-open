@@ -195,6 +195,8 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   // HA's popstate listeners were added before the plugin's, so they can't be pre-empted. On
   // landing on a dialog's entry they go back once more (closing the group's details too) and
   // reopen the details named in the URL; both are held off while a stacked dialog is involved.
+  // Each stacked entry records the stack it shows, so any move through history (Forward, or
+  // several entries at once) can open or close dialogs to match.
   const stack = []; // stacked details dialogs, newest last
   let ourBack = 0; // history.back() calls of ours still to arrive as popstates
 
@@ -204,7 +206,9 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
   const { back } = history;
   history.back = function (...args) {
     // window.event is the popstate when HA's listener calls this on landing on a dialog's entry
-    if (window.event?.type === "popstate" && (ourBack > 0 || stack.length > 0)) return;
+    const e = window.event;
+    const onStacked = e?.state?.holdToOpenStack && moreInfo()?._open;
+    if (e?.type === "popstate" && (ourBack > 0 || stack.length > 0 || onStacked)) return;
     return back.apply(this, args);
   };
 
@@ -231,10 +235,11 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     back.call(history);
   };
 
-  const openStacked = (entityId, view) => {
+  const openStacked = (entityId, view, push = true) => {
     const ha = home();
     const dialog = document.createElement("ha-more-info-dialog");
     dialog.hass = ha.hass;
+    dialog.__holdToOpen = { entityId, view };
     // Kept from HA's dialog manager, which would take it for the group's details closing
     dialog.addEventListener("dialog-closed", (e) => {
       e.stopImmediatePropagation();
@@ -245,7 +250,10 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     if (stack.length === 1) requestAnimationFrame(keepHass);
     dialog.showDialog({ entityId, view });
     // Held back with the rest until the finger lifts, during a hold
-    history.pushState({ ...history.state }, "", location.href);
+    if (push) {
+      const holdToOpenStack = stack.map((d) => d.__holdToOpen);
+      history.pushState({ ...history.state, holdToOpenStack }, "", location.href);
+    }
   };
 
   window.addEventListener(
@@ -270,13 +278,41 @@ const VERSION = "0.0.0-dev"; // replaced by the release workflow
     { capture: true },
   );
 
-  window.addEventListener("popstate", () => {
+  window.addEventListener("popstate", (e) => {
     if (ourBack > 0) {
       ourBack--;
       return;
     }
-    if (stack.length) dismiss(stack.at(-1));
+    const want = e.state?.holdToOpenStack ?? [];
+    const same = (d, w) =>
+      d.__holdToOpen.entityId === w?.entityId && d.__holdToOpen.view === w?.view;
+    let keep = 0;
+    while (keep < stack.length && same(stack[keep], want[keep])) keep++;
+    for (const d of stack.slice(keep).reverse()) dismiss(d);
+    if (moreInfo()?._open) {
+      for (const d of want.slice(keep)) openStacked(d.entityId, d.view, false);
+    } else if (want.length && !reopening) {
+      // Landed with the group's details closed: HA goes back off the entry (through any
+      // stacked ones before it) and reopens them on a fresh one, so the stack landed on is
+      // reopened on top with fresh entries too
+      const group = new URLSearchParams(location.search).get("more-info-entity-id");
+      reopening = { want, group, path: location.pathname, until: Date.now() + 2000 };
+      requestAnimationFrame(reopen);
+    }
   });
+  let reopening = null;
+  // Only over the same group's details on the same page; the first details to open, or leaving
+  // the page, ends it either way
+  const reopen = () => {
+    const s = history.state;
+    const { want, group, path, until } = reopening;
+    if (location.pathname !== path || Date.now() > until) reopening = null;
+    else if (moreInfo()?._open && s?.dialog && !s.holdToOpenStack) {
+      if (moreInfo()._entityId === group && !stack.length)
+        for (const d of want) openStacked(d.entityId, d.view);
+      reopening = null;
+    } else requestAnimationFrame(reopen);
+  };
 
   // The group's details closing some other way (say, navigating elsewhere) takes the rest along
   window.addEventListener("dialog-closed", (e) => {
