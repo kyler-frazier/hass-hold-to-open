@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 
 - Holds work inside an entity's details opened from a dashboard, such as on the members of a
@@ -39,6 +41,7 @@ All notable changes to this project are documented here. The format is based on
 - A fading "ghost" of the card when the hold registers.
 - Options: `enable`, `hold_time`, `ghost`, `ghost_opacity`, `ghost_scale` and `ghost_duration`.
 
-[Unreleased]: https://github.com/kyler-frazier/hass-hold-to-open/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/kyler-frazier/hass-hold-to-open/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kyler-frazier/hass-hold-to-open/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/kyler-frazier/hass-hold-to-open/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kyler-frazier/hass-hold-to-open/releases/tag/v0.1.0
